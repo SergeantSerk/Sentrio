@@ -36,7 +36,7 @@ namespace Sentrio
         /// </summary>
         /// <param name="ba">The byte array to convert.</param>
         /// <returns>String in hexadecimal format.</returns>
-        public string ByteArrayToString(byte[] ba)
+        public static string ByteArrayToString(byte[] ba)
         {
             if (ba != null && ba.Length > 0)
             {
@@ -58,7 +58,7 @@ namespace Sentrio
         /// </summary>
         /// <param name="hex">The hexadecimal string to convert.</param>
         /// <returns>Byte array derived from the hexadecimal string.</returns>
-        public byte[] StringToByteArray(string hex)
+        public static byte[] StringToByteArray(string hex)
         {
             if (string.IsNullOrWhiteSpace(hex) == false)
             {
@@ -108,7 +108,7 @@ namespace Sentrio
         /// <param name="a1">First byte array to compare from.</param>
         /// <param name="a2">Second byte array to compare with.</param>
         /// <returns></returns>
-        public bool CompareByteArrays(byte[] a1, byte[] a2)
+        public static bool CompareByteArrays(byte[] a1, byte[] a2)
         {
             if (a1 != null && a1.Length > 0 && a2 != null && a2.Length > 0)
             {
