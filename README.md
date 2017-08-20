@@ -25,7 +25,7 @@ string ciphertext = Convert.ToBase64String(result);
 
 ## Authors
 
-**Serkan Sahin** - *Initial work* - [SergeantSerk](https://github.com/SergeantSerk)
+**Serkan Sahin** - [SergeantSerk](https://github.com/SergeantSerk)
 
 See also the list of [contributors](https://github.com/SergeantSerk/Sentrio/graphs/contributors) who participated in this project.
 
