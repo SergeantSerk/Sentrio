@@ -21,6 +21,11 @@ namespace Project
       byte[] key = Encoding.ASCII.GetBytes(password);
       byte[] result = cw.Encrypt(data, key);
       string ciphertext = Convert.ToBase64String(result);
+      
+      Console.WriteLine($"Message:      {message}");
+      Console.WriteLine($"Password:     {password}");
+      Console.WriteLine($"Ciphertext:   {ciphertext}");
+      Console.ReadLine();
     }
   }
 }
