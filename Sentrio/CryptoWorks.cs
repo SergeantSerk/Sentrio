@@ -36,7 +36,7 @@ namespace Sentrio
         /// </summary>
         /// <param name="ba">The byte array to convert.</param>
         /// <returns>String in hexadecimal format.</returns>
-        public string ByteArrayToString(byte[] ba)
+        public static string ByteArrayToString(byte[] ba)
         {
             if (ba != null && ba.Length > 0)
             {
@@ -58,7 +58,7 @@ namespace Sentrio
         /// </summary>
         /// <param name="hex">The hexadecimal string to convert.</param>
         /// <returns>Byte array derived from the hexadecimal string.</returns>
-        public byte[] StringToByteArray(string hex)
+        public static byte[] StringToByteArray(string hex)
         {
             if (string.IsNullOrWhiteSpace(hex) == false)
             {
@@ -108,7 +108,7 @@ namespace Sentrio
         /// <param name="a1">First byte array to compare from.</param>
         /// <param name="a2">Second byte array to compare with.</param>
         /// <returns></returns>
-        public bool CompareByteArrays(byte[] a1, byte[] a2)
+        public static bool CompareByteArrays(byte[] a1, byte[] a2)
         {
             if (a1 != null && a1.Length > 0 && a2 != null && a2.Length > 0)
             {
@@ -133,57 +133,44 @@ namespace Sentrio
         }
 
         /// <summary>
-        /// Hashes a given file from file path.
+        /// Hashes given byte array with the given hash algorithm.
         /// </summary>
-        /// <param name="filePathIn">The file to hash in full file path.</param>
-        /// <returns>An array of hashes in order specified.</returns>
-        public string[] Hash(string filePathIn)
+        /// <param name="data">
+        /// The byte array to hash.
+        /// </param>
+        /// <param name="halgo">
+        /// The hash algorithm to use.
+        /// </param>
+        /// <returns>
+        /// If data is not empty and null & hash algorithm is not null, the hash of the byte array.
+        /// Else, null.
+        /// </returns>
+        public byte[] Hash(byte[] data, HashAlgorithm halgo)
         {
-            if (String.IsNullOrEmpty(filePathIn)) return new string[0];
+            if (data.Length > 0 && halgo != null) using (var h = halgo) return h.ComputeHash(data);
+            else return null;
+        }
 
-            List<string> list = new List<string>();
+        /// <summary>
+        /// Hashes given stream with the given hash algorithm.
+        /// Uses <see cref="Hash(byte[], HashAlgorithm)"/> method.
+        /// </summary>
+        /// <param name="stream">
+        /// The stream to read data from.
+        /// </param>
+        /// <param name="halgo">
+        /// The hash algorithm to use.
+        /// </param>
+        /// <returns>
+        /// The hash of the data from stream.
+        /// </returns>
+        public byte[] Hash(Stream stream, HashAlgorithm halgo)
+        {
+            // Reads data from FileStream to the data array
+            byte[] data = new byte[stream.Length];
+            stream.Read(data, 0, data.Length);
 
-            #region MD5
-            using (var md5 = MD5.Create())
-            {
-                using (var stream = new FileStream(filePathIn, FileMode.Open))
-                {
-                    list.Add("MD5: " + ByteArrayToString(md5.ComputeHash(stream)).ToUpper());
-                }
-            }
-            #endregion
-
-            #region SHA1
-            using (var sha1 = SHA1.Create())
-            {
-                using (var stream = new FileStream(filePathIn, FileMode.Open))
-                {
-                    list.Add("SHA1: " + ByteArrayToString(sha1.ComputeHash(stream)).ToUpper());
-                }
-            }
-            #endregion
-
-            #region SHA256
-            using (var sha256 = SHA256.Create())
-            {
-                using (var stream = new FileStream(filePathIn, FileMode.Open))
-                {
-                    list.Add("SHA256: " + ByteArrayToString(sha256.ComputeHash(stream)).ToUpper());
-                }
-            }
-            #endregion
-
-            #region SHA512
-            using (var sha512 = SHA512.Create())
-            {
-                using (var stream = new FileStream(filePathIn, FileMode.Open))
-                {
-                    list.Add("SHA512: " + ByteArrayToString(sha512.ComputeHash(stream)).ToUpper());
-                }
-            }
-            #endregion
-
-            return list.ToArray();
+            return Hash(data, halgo);
         }
         #endregion
 
