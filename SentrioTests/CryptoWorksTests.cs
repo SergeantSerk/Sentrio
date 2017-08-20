@@ -1,5 +1,4 @@
-﻿using Sentrio;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Linq;
 using System.Text;
 using System.Security.Cryptography;
