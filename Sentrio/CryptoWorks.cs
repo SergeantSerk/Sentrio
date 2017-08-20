@@ -440,7 +440,7 @@ namespace Sentrio
         #region New
         private MemoryStream Crypto(Stream MessageIn, Aes AES, Rfc2898DeriveBytes RFC, bool encrypt)
         {
-            using (var MessageOut = new MemoryStream())
+            MemoryStream MessageOut = new MemoryStream();
             using (var transform = encrypt ? AES.CreateEncryptor() : AES.CreateDecryptor())
             using (var CS = new CryptoStream(MessageOut, transform, CryptoStreamMode.Write))
             {
@@ -455,14 +455,13 @@ namespace Sentrio
                     MessageOut.Write(AES.IV, 0, AES.IV.Length);                     // IV
 
                     MessageIn.CopyTo(CS);                                           // Ciphertext
-                    return MessageOut;
                 }
                 else
                 {
                     MessageIn.CopyTo(CS);
-                    return MessageOut;
                 }
             }
+            return MessageOut;
         }
         #endregion
         #endregion

@@ -1,7 +1,9 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using Sentrio;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Linq;
 using System.Text;
 using System.Security.Cryptography;
+using System;
 
 namespace Sentrio.Tests
 {
@@ -84,6 +86,35 @@ namespace Sentrio.Tests
             }
 
             Assert.IsTrue(cond1 && cond2 && cond3);
+        }
+
+        /// <summary>
+        /// Tests if <see cref="CryptoWorks.Encrypt(byte[], byte[])"/> works correctly.
+        /// Incidently tests <see cref="CryptoWorks.Decrypt(byte[], byte[])"/> too.
+        /// </summary>
+        [TestMethod()]
+        public void EncryptTest()
+        {
+            string message = "Lorem ipsum dolor sit amet, consectetur adipiscing elit.";
+            byte[] password = Encoding.ASCII.GetBytes("1234567890");
+            try
+            {
+                // Encryption
+                byte[] data = Encoding.ASCII.GetBytes(message);
+                byte[] cipherdata = new CryptoWorks().Encrypt(data, password);
+                string ciphertext = Convert.ToBase64String(cipherdata);
+
+                // Decryption
+                byte[] ciphertext_data = Convert.FromBase64String(ciphertext);
+                byte[] plaintext_data = new CryptoWorks().Decrypt(ciphertext_data, password);
+                string plaintext = Encoding.ASCII.GetString(plaintext_data);
+
+                Assert.IsTrue(plaintext.SequenceEqual(message));
+            }
+            catch (Exception e)
+            {
+                Assert.Fail(e.ToString());
+            }
         }
     }
 }
