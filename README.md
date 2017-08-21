@@ -33,7 +33,7 @@ namespace Project
 
 ## Installing
 
-1. Download the library (.dll) from [here](https://github.com/SergeantSerk/Sentrio/releases "Sentrio Releases").
+1. Download the library from [here](https://github.com/SergeantSerk/Sentrio/releases "Sentrio Releases"), with latest releases [here](https://github.com/SergeantSerk/Sentrio/releases/latest "Sentrio Latest Release").
 2. Launch Visual Studio.
 3. Open your project.
 4. Project -> Add Reference -> Browse -> Browse Button.
