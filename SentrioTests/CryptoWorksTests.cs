@@ -7,14 +7,14 @@ using System;
 
 namespace Sentrio.Tests
 {
-    [TestClass()]
+    [TestClass]
     public class CryptoWorksTests
     {
         /// <summary>
         /// Tests if <see cref="CryptoWorks.CompareByteArrays(byte[], byte[])"/> works correctly.
         /// Uses two test cases where two arrays equal and two arrays do not equal each other.
         /// </summary>
-        [TestMethod()]
+        [TestMethod]
         public void CompareByteArraysTest()
         {
             byte[] a1 = { 0x82, 0x44, 0xF4, 0x15, 0x77, 0x05 };
@@ -31,7 +31,7 @@ namespace Sentrio.Tests
         /// <summary>
         /// Tests if <see cref="CryptoWorks.ByteArrayToString(byte[])"/> works correctly.
         /// </summary>
-        [TestMethod()]
+        [TestMethod]
         public void ByteArrayToStringTest()
         {
             byte[] a = { 0x76, 0x69, 0xC0, 0xDB, 0x5F, 0x3E };
@@ -45,7 +45,7 @@ namespace Sentrio.Tests
         /// Tests if <see cref="CryptoWorks.StringToByteArray(string)"/> works correctly.
         /// Does not depend on <see cref="CryptoWorks.CompareByteArrays(byte[], byte[])"/>.
         /// </summary>
-        [TestMethod()]
+        [TestMethod]
         public void StringToByteArrayTest()
         {
             string hex = "813C18D33137";
@@ -58,7 +58,7 @@ namespace Sentrio.Tests
         /// <summary>
         /// Tests if <see cref="CryptoWorks.Hash(byte[], HashAlgorithm)"/> works correctly.
         /// </summary>
-        [TestMethod()]
+        [TestMethod]
         public void HashTest()
         {
             byte[] data = Encoding.ASCII.GetBytes("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq");
@@ -92,7 +92,7 @@ namespace Sentrio.Tests
         /// Tests if <see cref="CryptoWorks.Encrypt(byte[], byte[])"/> works correctly.
         /// Incidently tests <see cref="CryptoWorks.Decrypt(byte[], byte[])"/> too.
         /// </summary>
-        [TestMethod()]
+        [TestMethod]
         public void EncryptTest()
         {
             string message = "Lorem ipsum dolor sit amet, consectetur adipiscing elit.";
