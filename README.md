@@ -1,4 +1,4 @@
-# Sentrio
+# Sentrio [![Build status](https://ci.appveyor.com/api/projects/status/kc8r4dkwp3c5ibwa?svg=true)](https://ci.appveyor.com/project/SergeantSerk/sentrio)
 A cryptography library for securely encrypting and decrypting data using custom protocol.
 
 ## Getting Started
