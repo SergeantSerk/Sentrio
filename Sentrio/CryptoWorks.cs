@@ -440,7 +440,7 @@ namespace Sentrio
         #region New
         private async Task<MemoryStream> Crypto(Stream MessageIn, Aes AES, Rfc2898DeriveBytes RFC, bool encrypt)
         {
-            MemoryStream MessageOut = new MemoryStream();
+            using (MemoryStream MessageOut = new MemoryStream())
             using (var transform = encrypt ? AES.CreateEncryptor() : AES.CreateDecryptor())
             using (var CS = new CryptoStream(MessageOut, transform, CryptoStreamMode.Write))
             {
@@ -460,8 +460,10 @@ namespace Sentrio
                 {
                     await MessageIn.CopyToAsync(CS);
                 }
+
+                return MessageOut;
             }
-            return MessageOut;
+            //return MessageOut;
         }
         #endregion
         #endregion
