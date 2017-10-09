@@ -2,6 +2,7 @@
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace Sentrio
 {
@@ -180,7 +181,7 @@ namespace Sentrio
         /// <param name="FilePathIn">The path of the file to encrypt.</param>
         /// <param name="FilePathOut">The path to save the encrypted file.</param>
         /// <param name="password">The password to encrypt the file.</param>
-        public void Encrypt(string FilePathIn, string FilePathOut, string password)
+        public async Task Encrypt(string FilePathIn, string FilePathOut, string password)
         {
             // Open the source file
             using (var FileIn = new FileStream(FilePathIn, FileMode.Open))
@@ -193,10 +194,10 @@ namespace Sentrio
                 AES.Key = RFC.GetBytes(AES.KeySize / 8);
 
                 // Encrypt file and get the stream
-                using (var CryptoStream = Crypto(FileIn, AES, RFC, true))
+                using (var CryptoStream = await Crypto(FileIn, AES, RFC, true))
                 {
-                    byte[] data = CryptoStream.ToArray();   // Get encrypted content
-                    FileOut.Write(data, 0, data.Length);    // Write to destination file
+                    byte[] data = CryptoStream.ToArray();               // Get encrypted content
+                    await FileOut.WriteAsync(data, 0, data.Length);     // Write to destination file
                 }
             }
         }
@@ -207,7 +208,7 @@ namespace Sentrio
         /// <param name="FilePathIn">The path of the file to decrypt.</param>
         /// <param name="FilePathOut">The path to save the decrypted file.</param>
         /// <param name="password">The password to decrypt the file.</param>
-        public void Decrypt(string FilePathIn, string FilePathOut, string password)
+        public async Task Decrypt(string FilePathIn, string FilePathOut, string password)
         {
             // Open the source file
             using (var FileIn = new FileStream(FilePathIn, FileMode.Open))
@@ -239,13 +240,12 @@ namespace Sentrio
                     // Set AES IV from IV retrieved in file
                     AES.IV = IV;
 
-
                     // Decrypt file and get the stream
-                    using (var CryptoStream = Crypto(FileIn, AES, RFC, false))
+                    using (var CryptoStream = await Crypto(FileIn, AES, RFC, false))
                     {
                         // Maybe use copyto?
                         byte[] data = CryptoStream.ToArray();   // Get decrypted content
-                        FileOut.Write(data, 0, data.Length);    // Write to destination file
+                        await FileOut.WriteAsync(data, 0, data.Length);    // Write to destination file
                     }
                 }
             }
@@ -265,14 +265,14 @@ namespace Sentrio
         /// <returns>
         /// The encrypted message from the supplied message and password.
         /// </returns>
-        public byte[] Encrypt(byte[] message, byte[] password)
+        public async Task<byte[]> Encrypt(byte[] message, byte[] password)
         {
             using (var MessageIn = new MemoryStream(message))
-            using (var RFC = new Rfc2898DeriveBytes(password, GenerateRandomSalt(AES.IV.Length), iterations))
+            using (var RFC = new Rfc2898DeriveBytes(password, await Task.Run(() => GenerateRandomSalt(AES.IV.Length)), iterations))
             {
                 AES.Key = RFC.GetBytes(AES.KeySize / 8);
 
-                using (var MessageOut = Crypto(MessageIn, AES, RFC, true))
+                using (MemoryStream MessageOut = await Crypto(MessageIn, AES, RFC, true))
                 {
                     return MessageOut.ToArray();
                 }
@@ -291,7 +291,7 @@ namespace Sentrio
         /// <returns>
         /// The decrypted message from the supplied message and password.
         /// </returns>
-        public byte[] Decrypt(byte[] message, byte[] password)
+        public async Task<byte[]> Decrypt(byte[] message, byte[] password)
         {
             using (var MessageIn = new MemoryStream(message))
             {
@@ -308,7 +308,7 @@ namespace Sentrio
                     AES.Key = RFC.GetBytes(AES.KeySize / 8);
                     AES.IV = IV;
 
-                    using (var MessageOut = Crypto(MessageIn, AES, RFC, false))
+                    using (var MessageOut = await Crypto(MessageIn, AES, RFC, false))
                     {
                         return MessageOut.ToArray();
                     }
@@ -438,9 +438,9 @@ namespace Sentrio
         #endregion
 
         #region New
-        private MemoryStream Crypto(Stream MessageIn, Aes AES, Rfc2898DeriveBytes RFC, bool encrypt)
+        private async Task<MemoryStream> Crypto(Stream MessageIn, Aes AES, Rfc2898DeriveBytes RFC, bool encrypt)
         {
-            MemoryStream MessageOut = new MemoryStream();
+            using (MemoryStream MessageOut = new MemoryStream())
             using (var transform = encrypt ? AES.CreateEncryptor() : AES.CreateDecryptor())
             using (var CS = new CryptoStream(MessageOut, transform, CryptoStreamMode.Write))
             {
@@ -454,14 +454,16 @@ namespace Sentrio
                     MessageOut.WriteByte(Convert.ToByte(AES.IV.Length));            // IV Length
                     MessageOut.Write(AES.IV, 0, AES.IV.Length);                     // IV
 
-                    MessageIn.CopyTo(CS);                                           // Ciphertext
+                    await MessageIn.CopyToAsync(CS);                                           // Ciphertext
                 }
                 else
                 {
-                    MessageIn.CopyTo(CS);
+                    await MessageIn.CopyToAsync(CS);
                 }
+
+                return MessageOut;
             }
-            return MessageOut;
+            //return MessageOut;
         }
         #endregion
         #endregion

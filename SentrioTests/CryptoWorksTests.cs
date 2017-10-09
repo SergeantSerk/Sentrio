@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Security.Cryptography;
 using System;
+using System.Threading.Tasks;
 
 namespace Sentrio.Tests
 {
@@ -93,20 +94,21 @@ namespace Sentrio.Tests
         /// Incidently tests <see cref="CryptoWorks.Decrypt(byte[], byte[])"/> too.
         /// </summary>
         [TestMethod, TestCategory("Crypto")]
-        public void EncryptTest()
+        public async Task EncryptDecryptTest()
         {
             string message = "Lorem ipsum dolor sit amet, consectetur adipiscing elit.";
             byte[] password = Encoding.ASCII.GetBytes("1234567890");
             try
             {
+                CryptoWorks cw = new CryptoWorks();
                 // Encryption
                 byte[] data = Encoding.ASCII.GetBytes(message);
-                byte[] cipherdata = new CryptoWorks().Encrypt(data, password);
+                byte[] cipherdata = await cw.Encrypt(data, password);
                 string ciphertext = Convert.ToBase64String(cipherdata);
 
                 // Decryption
                 byte[] ciphertext_data = Convert.FromBase64String(ciphertext);
-                byte[] plaintext_data = new CryptoWorks().Decrypt(ciphertext_data, password);
+                byte[] plaintext_data = await cw.Decrypt(ciphertext_data, password);
                 string plaintext = Encoding.ASCII.GetString(plaintext_data);
 
                 Assert.IsTrue(plaintext.SequenceEqual(message));
