@@ -5,6 +5,7 @@ using System.Text;
 using System.Security.Cryptography;
 using System;
 using System.Threading.Tasks;
+using System.IO;
 
 namespace Sentrio.Tests
 {
@@ -97,21 +98,29 @@ namespace Sentrio.Tests
         public async Task EncryptDecryptTest()
         {
             string message = "Lorem ipsum dolor sit amet, consectetur adipiscing elit.";
-            byte[] password = Encoding.ASCII.GetBytes("1234567890");
+            string password = "1234567890";
             try
             {
                 CryptoWorks cw = new CryptoWorks();
-                // Encryption
-                byte[] data = Encoding.ASCII.GetBytes(message);
-                byte[] cipherdata = await cw.Encrypt(data, password);
-                string ciphertext = Convert.ToBase64String(cipherdata);
+                bool cond1 = false;
 
-                // Decryption
-                byte[] ciphertext_data = Convert.FromBase64String(ciphertext);
-                byte[] plaintext_data = await cw.Decrypt(ciphertext_data, password);
-                string plaintext = Encoding.ASCII.GetString(plaintext_data);
+                #region Text
+                {
+                    // Encryption
+                    byte[] data = Encoding.ASCII.GetBytes(message);
+                    byte[] cipherdata = await cw.Encrypt(data, password, 256, 100000);
+                    string ciphertext = Encoding.ASCII.GetString(cipherdata);
 
-                Assert.IsTrue(plaintext.SequenceEqual(message));
+                    // Decryption
+                    byte[] ciphertext_data = Encoding.ASCII.GetBytes(ciphertext);
+                    byte[] plaintext_data = await cw.Decrypt(ciphertext_data, password);
+                    string plaintext = Encoding.ASCII.GetString(plaintext_data);
+
+                    cond1 = plaintext.SequenceEqual(message);
+                }
+                #endregion
+
+                Assert.IsTrue(cond1);
             }
             catch (Exception e)
             {
