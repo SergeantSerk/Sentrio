@@ -181,8 +181,16 @@ namespace Sentrio
         /// <param name="FilePathIn">The path of the file to encrypt.</param>
         /// <param name="FilePathOut">The path to save the encrypted file.</param>
         /// <param name="password">The password to encrypt the file.</param>
+        /// <param name="key_size">The size of the key for AES.</param>
+        /// <param name="iterations">The amount of iterations to derive the key, from password.</param>
         public async Task Encrypt(string FilePathIn, string FilePathOut, string password, int key_size, int iterations)
         {
+            if (string.IsNullOrWhiteSpace(FilePathIn)) throw new ArgumentException("The input file path cannot be empty or null.");
+            else if (string.IsNullOrWhiteSpace(FilePathOut)) throw new ArgumentException("The output file path cannot be empty or null.");
+            else if (string.IsNullOrWhiteSpace(password)) throw new ArgumentException("The password cannot be empty or null.");
+            else if (key_size < 0 || !Aes.Create().ValidKeySize(key_size)) throw new ArgumentException("The key size is not valid.");
+            else if (iterations < 1) throw new ArgumentException("The iteration count cannot be less than 1.");
+
             // Open the source file
             using (FileStream FileIn = new FileStream(FilePathIn, FileMode.Open))
             // Create the destination file
@@ -243,26 +251,19 @@ namespace Sentrio
         #endregion
 
         #region Text
-        /// <summary>
-        /// Encrypts a string message using given password.
-        /// </summary>
-        /// <param name="message">
-        /// The message to encrypt.
-        /// </param>
-        /// <param name="password">
-        /// The password to encrypt the message with.
-        /// </param>
-        /// <param name="iterations">
-        /// The amount of iterations to derive the key, from password.
-        /// </param>
-        /// <param name="key_size">
-        /// The size of the key for AES.
-        /// </param>
-        /// <returns>
-        /// The encrypted message from the supplied message and password.
-        /// </returns>
+        /// <summary>Encrypts a string message using given password.</summary>
+        /// <param name="message">The message to encrypt.</param>
+        /// <param name="password">The password to encrypt the message with.</param>
+        /// <param name="iterations">The amount of iterations to derive the key, from password.</param>
+        /// <param name="key_size">The size of the key for AES.</param>
+        /// <returns>The encrypted message from the supplied message and password.</returns>
         public async Task<byte[]> Encrypt(byte[] message, string password, int key_size, int iterations)
         {
+            if (message == null || message.Length == 0) throw new ArgumentException("The message cannot be empty or null.");
+            else if (string.IsNullOrWhiteSpace(password)) throw new ArgumentException("The password cannot be empty or null.");
+            else if (key_size < 0 || !Aes.Create().ValidKeySize(key_size)) throw new ArgumentException("The key size is not valid.");
+            else if (iterations < 1) throw new ArgumentException("The iteration count cannot be less than 1.");
+
             byte[] salt = GenerateSecureRandomBytes(key_size);
             byte[] iv = GenerateSecureRandomBytes(Aes.Create().BlockSize / 8);
             using (MemoryStream MessageIn = new MemoryStream(message))
