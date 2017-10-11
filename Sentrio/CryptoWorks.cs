@@ -195,11 +195,16 @@ namespace Sentrio
             using (FileStream FileIn = new FileStream(FilePathIn, FileMode.Open))
             // Create the destination file
             using (FileStream FileOut = new FileStream(FilePathOut, FileMode.Create))
-            // Encrypt file and get the stream
-            using (MemoryStream CryptoStream = await Crypto(FileIn, password, key_size, iterations, GenerateSecureRandomBytes(key_size), GenerateSecureRandomBytes(Aes.Create().BlockSize / 8), true))
             {
-                byte[] data = CryptoStream.ToArray();               // Get encrypted content
-                await FileOut.WriteAsync(data, 0, data.Length);     // Write to destination file
+                // Read bytes from input file
+                byte[] data = new byte[FileIn.Length];
+                await FileIn.ReadAsync(data, 0, data.Length);
+
+                // Encrypt using text encryption
+                byte[] ciphertext = await Encrypt(data, password, key_size, iterations);
+
+                // Write to destination file
+                await FileOut.WriteAsync(ciphertext, 0, ciphertext.Length);
             }
         }
 
@@ -211,41 +216,24 @@ namespace Sentrio
         /// <param name="password">The password to decrypt the file.</param>
         public async Task Decrypt(string FilePathIn, string FilePathOut, string password)
         {
+            if (string.IsNullOrWhiteSpace(FilePathIn)) throw new ArgumentException("The input file path cannot be empty or null.");
+            else if (string.IsNullOrWhiteSpace(FilePathOut)) throw new ArgumentException("The output file path cannot be empty or null.");
+            else if (string.IsNullOrWhiteSpace(password)) throw new ArgumentException("The password cannot be empty or null.");
+
             // Open the source file
             using (var FileIn = new FileStream(FilePathIn, FileMode.Open))
             // Create the destination file
             using (var FileOut = new FileStream(FilePathOut, FileMode.Create))
             {
-                // Hold bytes for key size, using the size from current byte
-                byte[] KeySizeBytes = new byte[FileIn.ReadByte()];
-                // Fill the array with bytes from file, of array length
-                FileIn.Read(KeySizeBytes, 0, KeySizeBytes.Length);
-                // Parse key size from the array
-                int key_size = int.Parse(Encoding.ASCII.GetString(KeySizeBytes));
+                // Get data from file
+                byte[] data = new byte[FileIn.Length];
+                await FileIn.ReadAsync(data, 0, data.Length);
 
-                // Hold bytes for iteration count, using the size from current byte
-                byte[] IterationsBytes = new byte[FileIn.ReadByte()];
-                // Fill the array with bytes from file, of array length
-                FileIn.Read(IterationsBytes, 0, IterationsBytes.Length);
-                // Parse iteration count from the array
-                int iterations = int.Parse(Encoding.ASCII.GetString(IterationsBytes));
+                // Decrypt using text decrypt method
+                byte[] plaintext = await Decrypt(data, password);
 
-                // Hold bytes for salt, using the size from current byte
-                byte[] salt = new byte[(FileIn.ReadByte())];
-                // Fill the array with bytes from file, in the current position and of array length
-                FileIn.Read(salt, 0, salt.Length);
-
-                // Hold bytes for IV, using the size from current byte
-                byte[] iv = new byte[FileIn.ReadByte()];
-                // Fill the array with bytes from file, in the current position and of array length
-                FileIn.Read(iv, 0, iv.Length);
-
-                // Decrypt file and get the stream
-                using (var CryptoStream = await Crypto(FileIn, password, key_size, iterations, salt, iv, false))
-                {
-                    byte[] data = CryptoStream.ToArray();               // Get decrypted content
-                    await FileOut.WriteAsync(data, 0, data.Length);     // Write to destination file
-                }
+                // Write to output file
+                await FileOut.WriteAsync(plaintext, 0, plaintext.Length);
             }
         }
         #endregion
