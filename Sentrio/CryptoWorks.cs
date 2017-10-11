@@ -11,12 +11,12 @@ namespace Sentrio
         #region Properties
         // Preconfigured password key derivation parameters
         // public const string PasswordChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!£$%^&*()_+-=[]{}'#@~,.<>/? ";
-        private static Aes AES = new AesCryptoServiceProvider() { Mode = CipherMode.CBC, Padding = PaddingMode.PKCS7 };
-        // public const CipherMode CM = CipherMode.CBC;
-        // public const PaddingMode PM = PaddingMode.PKCS7;
+        // private static Aes AES = new AesCryptoServiceProvider() { Mode = CipherMode.CBC, Padding = PaddingMode.PKCS7 };
+        public const CipherMode CM = CipherMode.CBC;
+        public const PaddingMode PM = PaddingMode.PKCS7;
         // public const int KeySize = 256;
+        // public const int IVSize = KeySize / 8;
         // public const int SaltSize = KeySize / 8;
-        public int iterations = 10000;
 
         // Software properties
         public bool AutoEncrypt = true;
@@ -88,15 +88,15 @@ namespace Sentrio
         }
 
         /// <summary>
-        /// Generate a cryptographically strong random salt using RNG based on given salt size.
+        /// Generate cryptographically strong random bytes using RNG based on given size.
         /// </summary>
-        /// <param name="saltSize">The size of salt.</param>
-        /// <returns>Byte array of the generated salt.</returns>
-        public byte[] GenerateRandomSalt(int saltSize)
+        /// <param name="size">The size of byte array.</param>
+        /// <returns>A byte array filled with random bytes.</returns>
+        public byte[] GenerateSecureRandomBytes(int size)
         {
             using (var rng = new RNGCryptoServiceProvider())
             {
-                byte[] random = new byte[saltSize];
+                byte[] random = new byte[size];
                 rng.GetBytes(random);
                 return random;
             }
@@ -181,24 +181,17 @@ namespace Sentrio
         /// <param name="FilePathIn">The path of the file to encrypt.</param>
         /// <param name="FilePathOut">The path to save the encrypted file.</param>
         /// <param name="password">The password to encrypt the file.</param>
-        public async Task Encrypt(string FilePathIn, string FilePathOut, string password)
+        public async Task Encrypt(string FilePathIn, string FilePathOut, string password, int key_size, int iterations)
         {
             // Open the source file
-            using (var FileIn = new FileStream(FilePathIn, FileMode.Open))
+            using (FileStream FileIn = new FileStream(FilePathIn, FileMode.Open))
             // Create the destination file
-            using (var FileOut = new FileStream(FilePathOut, FileMode.Create))
-            // Derive key using password, salt (length of IV) and iterations
-            using (var RFC = new Rfc2898DeriveBytes(password, AES.IV.Length, iterations))
+            using (FileStream FileOut = new FileStream(FilePathOut, FileMode.Create))
+            // Encrypt file and get the stream
+            using (MemoryStream CryptoStream = await Crypto(FileIn, password, key_size, iterations, GenerateSecureRandomBytes(key_size), GenerateSecureRandomBytes(key_size / 8), true))
             {
-                // Set AES key from RFC key derivation
-                AES.Key = RFC.GetBytes(AES.KeySize / 8);
-
-                // Encrypt file and get the stream
-                using (var CryptoStream = await Crypto(FileIn, AES, RFC, true))
-                {
-                    byte[] data = CryptoStream.ToArray();               // Get encrypted content
-                    await FileOut.WriteAsync(data, 0, data.Length);     // Write to destination file
-                }
+                byte[] data = CryptoStream.ToArray();               // Get encrypted content
+                await FileOut.WriteAsync(data, 0, data.Length);     // Write to destination file
             }
         }
 
@@ -215,6 +208,13 @@ namespace Sentrio
             // Create the destination file
             using (var FileOut = new FileStream(FilePathOut, FileMode.Create))
             {
+                // Hold bytes for key size, using the size from current byte
+                byte[] KeySizeBytes = new byte[FileIn.ReadByte()];
+                // Fill the array with bytes from file, of array length
+                FileIn.Read(KeySizeBytes, 0, KeySizeBytes.Length);
+                // Parse key size from the array
+                int key_size = int.Parse(Encoding.ASCII.GetString(KeySizeBytes));
+
                 // Hold bytes for iteration count, using the size from current byte
                 byte[] IterationsBytes = new byte[FileIn.ReadByte()];
                 // Fill the array with bytes from file, of array length
@@ -228,25 +228,15 @@ namespace Sentrio
                 FileIn.Read(salt, 0, salt.Length);
 
                 // Hold bytes for IV, using the size from current byte
-                byte[] IV = new byte[FileIn.ReadByte()];
+                byte[] iv = new byte[FileIn.ReadByte()];
                 // Fill the array with bytes from file, in the current position and of array length
-                FileIn.Read(IV, 0, IV.Length);
+                FileIn.Read(iv, 0, iv.Length);
 
-                // Derive key using password, retrieved salt and retrieved iterations
-                using (var RFC = new Rfc2898DeriveBytes(password, salt, iterations))
+                // Decrypt file and get the stream
+                using (var CryptoStream = await Crypto(FileIn, password, key_size, iterations, salt, iv, false))
                 {
-                    // Set AES key from RFC key derivation
-                    AES.Key = RFC.GetBytes(AES.KeySize / 8);
-                    // Set AES IV from IV retrieved in file
-                    AES.IV = IV;
-
-                    // Decrypt file and get the stream
-                    using (var CryptoStream = await Crypto(FileIn, AES, RFC, false))
-                    {
-                        // Maybe use copyto?
-                        byte[] data = CryptoStream.ToArray();   // Get decrypted content
-                        await FileOut.WriteAsync(data, 0, data.Length);    // Write to destination file
-                    }
+                    byte[] data = CryptoStream.ToArray();               // Get decrypted content
+                    await FileOut.WriteAsync(data, 0, data.Length);     // Write to destination file
                 }
             }
         }
@@ -265,17 +255,12 @@ namespace Sentrio
         /// <returns>
         /// The encrypted message from the supplied message and password.
         /// </returns>
-        public async Task<byte[]> Encrypt(byte[] message, byte[] password)
+        public async Task<byte[]> Encrypt(byte[] message, string password, int key_size, int iterations)
         {
-            using (var MessageIn = new MemoryStream(message))
-            using (var RFC = new Rfc2898DeriveBytes(password, await Task.Run(() => GenerateRandomSalt(AES.IV.Length)), iterations))
+            using (MemoryStream MessageIn = new MemoryStream(message))
+            using (MemoryStream MessageOut = await Crypto(MessageIn, password, key_size, iterations, GenerateSecureRandomBytes(key_size / 8), GenerateSecureRandomBytes(key_size / 8), true))
             {
-                AES.Key = RFC.GetBytes(AES.KeySize / 8);
-
-                using (MemoryStream MessageOut = await Crypto(MessageIn, AES, RFC, true))
-                {
-                    return MessageOut.ToArray();
-                }
+                return MessageOut.ToArray();
             }
         }
 
@@ -291,179 +276,75 @@ namespace Sentrio
         /// <returns>
         /// The decrypted message from the supplied message and password.
         /// </returns>
-        public async Task<byte[]> Decrypt(byte[] message, byte[] password)
+        public async Task<byte[]> Decrypt(byte[] message, string password)
         {
             using (var MessageIn = new MemoryStream(message))
             {
+                byte[] KeySizeBytes = new byte[MessageIn.ReadByte()];
+                MessageIn.Read(KeySizeBytes, 0, KeySizeBytes.Length);
+                int key_size = int.Parse(Encoding.ASCII.GetString(KeySizeBytes));
+
                 byte[] IterationsBytes = new byte[MessageIn.ReadByte()];
                 MessageIn.Read(IterationsBytes, 0, IterationsBytes.Length);
                 int iterations = int.Parse(Encoding.ASCII.GetString(IterationsBytes));
+
                 byte[] salt = new byte[(MessageIn.ReadByte())];
                 MessageIn.Read(salt, 0, salt.Length);
-                byte[] IV = new byte[MessageIn.ReadByte()];
-                MessageIn.Read(IV, 0, IV.Length);
 
-                using (var RFC = new Rfc2898DeriveBytes(password, salt, iterations))
+                byte[] iv = new byte[MessageIn.ReadByte()];
+                MessageIn.Read(iv, 0, iv.Length);
+
+                using (MemoryStream MessageOut = await Crypto(MessageIn, password, key_size, iterations, salt, iv, false))
                 {
-                    AES.Key = RFC.GetBytes(AES.KeySize / 8);
-                    AES.IV = IV;
-
-                    using (var MessageOut = await Crypto(MessageIn, AES, RFC, false))
-                    {
-                        return MessageOut.ToArray();
-                    }
+                    return MessageOut.ToArray();
                 }
             }
         }
         #endregion
 
         #region Operations
-        #region Old
-        /*
-        private Stream Encrypt(Stream StreamIn, string password)
-        {
-            // Create a custom Aes object that has predefined parameters
-            using (var sk = aes())
-            using (var rfc = new Rfc2898DeriveBytes(password, sk.KeySize / 8))
-            {
-                #region Salt
-                // Hold salt bytes that have been generated by the Rfc2898 class
-                byte[] salt = rfc.Salt;
-                // Hold the length of the salt byte array for use in decryption
-                byte saltLength = Convert.ToByte(salt.Length);
-                #endregion
-
-                #region IV
-                // Hold the IV bytes that have been automatically generated when initialising the Aes class
-                byte[] iv = sk.IV;
-                // Hold the length of the IV byte array for use in decryption
-                byte IvLength = Convert.ToByte(iv.Length);
-                #endregion
-
-                #region Key Derivation
-                // Derive key byte array from the given password string, salt and iterations, based on the
-                // key size used
-                byte[] key = rfc.GetBytes(sk.KeySize / 8);
-                // Set the key of the custom Aes object to the derived key
-                sk.Key = key;
-                #endregion
-
-                using (var StreamOut = new MemoryStream())
-                {
-                    using (var transform = sk.CreateEncryptor())
-                    using (var cs = new CryptoStream(StreamOut, transform, CryptoStreamMode.Write))
-                    {
-                        #region Headers
-                        // Write the salt length, salt, IV length and IV to the start of the
-                        // file, in their respective order, then finalise with the encrypted content
-                        StreamOut.WriteByte(saltLength);            // Salt Length
-                        StreamOut.Write(salt, 0, salt.Length);      // Salt
-                        StreamOut.WriteByte(IvLength);              // IV Length
-                        StreamOut.Write(iv, 0, iv.Length);          // IV
-                        StreamOut.WriteByte((byte)StreamIn.Length); // Data length
-                        #endregion
-
-                        #region Data
-                        // Write the decrypted stream to file and flush final block.
-                        // This is not recommended as it does not give steps where progress
-                        // can be tracked.
-                        StreamIn.CopyTo(cs);
-
-                        cs.FlushFinalBlock();
-                        #endregion
-                    }
-
-                    // Return encrypt output stream
-                    return new MemoryStream(StreamOut.ToArray());
-                }
-            }
-        }
-
-        private Stream Decrypt(Stream StreamIn, string password)
-        {
-            using (var sk = aes())
-            {
-                #region Salt
-                // Read from first byte which holds the salt length
-                int saltLength = StreamIn.ReadByte();
-                // Create a salt byte array of size saltLength that was read previously
-                byte[] salt = new byte[saltLength];
-                // Fill the salt byte array with bytes of given length
-                StreamIn.Read(salt, 0, salt.Length);
-                #endregion
-
-                #region IV
-                // Read from current byte which holds the IV length
-                int IvLength = StreamIn.ReadByte();
-                // Create an IV byte array of size ivLength that was read previously
-                byte[] iv = new byte[IvLength];
-                // Fill the IV byte array with bytes of given length
-                StreamIn.Read(iv, 0, iv.Length);
-                #endregion
-
-                #region Data Information
-                // Read from current byte which holds the length of data
-                int DataLength = StreamIn.ReadByte();
-                #endregion
-
-                // Derive key from the password and retrieved salt from file
-                using (var rfc = new Rfc2898DeriveBytes(password, salt))
-                {
-                    #region Key Derivation
-                    // Derive key byte array from the given password string, salt and iterations, based on the
-                    // key size used
-                    byte[] key = rfc.GetBytes(sk.KeySize / 8);
-                    #endregion
-
-                    sk.Key = key;
-                    sk.IV = iv;
-
-                    using (var StreamOut = new MemoryStream())
-                    {
-                        using (var transform = sk.CreateDecryptor())
-                        using (var cs = new CryptoStream(StreamOut, transform, CryptoStreamMode.Write))
-                        {
-                            #region Data
-                            // Write the decrypted stream to file and flush final block.
-                            // This is not recommended as it does not give steps where progress
-                            // can be tracked.
-                            StreamIn.CopyTo(cs);
-                            #endregion
-                        }
-                        return new MemoryStream(StreamOut.ToArray());
-                    }
-                }
-            }
-            */
-        #endregion
-
         #region New
-        private async Task<MemoryStream> Crypto(Stream MessageIn, Aes AES, Rfc2898DeriveBytes RFC, bool encrypt)
+        private async Task<MemoryStream> Crypto(Stream input, string password, int key_size, int iterations, byte[] salt, byte[] iv, bool encrypt)
         {
-            using (MemoryStream MessageOut = new MemoryStream())
-            using (var transform = encrypt ? AES.CreateEncryptor() : AES.CreateDecryptor())
-            using (var CS = new CryptoStream(MessageOut, transform, CryptoStreamMode.Write))
+            using (MemoryStream output = new MemoryStream())
+            using (var rfc = new Rfc2898DeriveBytes(password, salt, iterations))
+            using (var aes = Aes.Create())
             {
-                if (encrypt)
-                {
-                    byte[] IterationBytes = Encoding.ASCII.GetBytes(RFC.IterationCount.ToString());
-                    MessageOut.WriteByte(Convert.ToByte(IterationBytes.Length));    // Iteration Length
-                    MessageOut.Write(IterationBytes, 0, IterationBytes.Length);     // Iteration
-                    MessageOut.WriteByte(Convert.ToByte(RFC.Salt.Length));          // Salt Length
-                    MessageOut.Write(RFC.Salt, 0, RFC.Salt.Length);                 // Salt
-                    MessageOut.WriteByte(Convert.ToByte(AES.IV.Length));            // IV Length
-                    MessageOut.Write(AES.IV, 0, AES.IV.Length);                     // IV
+                // Check if key size is valid
+                if (!aes.ValidKeySize(key_size)) throw new Exception("The specified key size is not valid.");
 
-                    await MessageIn.CopyToAsync(CS);                                           // Ciphertext
-                }
-                else
-                {
-                    await MessageIn.CopyToAsync(CS);
-                }
+                aes.KeySize = key_size;
+                aes.Mode = CM;
+                aes.Padding = PM;
+                aes.Key = rfc.GetBytes(aes.KeySize / 8);
+                aes.IV = iv;
 
-                return MessageOut;
+                using (var transform = encrypt ? aes.CreateEncryptor() : aes.CreateDecryptor())
+                using (var cs = new CryptoStream(output, transform, CryptoStreamMode.Write))
+                {
+                    if (encrypt)
+                    {
+                        byte[] KeySizeBytes = Encoding.ASCII.GetBytes(aes.KeySize.ToString());              // Key Size Bytes
+                        output.WriteByte(Convert.ToByte(KeySizeBytes.Length));                              // Key Size Length
+                        output.Write(KeySizeBytes, 0, KeySizeBytes.Length);                                 // Key Size
+                        byte[] IterationBytes = Encoding.ASCII.GetBytes(rfc.IterationCount.ToString());     // Iteration Bytes
+                        output.WriteByte(Convert.ToByte(IterationBytes.Length));                            // Iteration Length
+                        output.Write(IterationBytes, 0, IterationBytes.Length);                             // Iteration
+                        output.WriteByte(Convert.ToByte(rfc.Salt.Length));                                  // Salt Length
+                        output.Write(rfc.Salt, 0, rfc.Salt.Length);                                         // Salt
+                        output.WriteByte(Convert.ToByte(aes.IV.Length));                                    // IV Length
+                        output.Write(aes.IV, 0, aes.IV.Length);                                             // IV
+
+                        await input.CopyToAsync(cs);                                                        // Ciphertext
+                    }
+                    else
+                    {
+                        await input.CopyToAsync(cs);                                                        // Message
+                    }
+
+                    return output;
+                }
             }
-            //return MessageOut;
         }
         #endregion
         #endregion

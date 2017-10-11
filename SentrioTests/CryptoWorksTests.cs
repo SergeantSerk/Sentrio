@@ -97,13 +97,21 @@ namespace Sentrio.Tests
         public async Task EncryptDecryptTest()
         {
             string message = "Lorem ipsum dolor sit amet, consectetur adipiscing elit.";
-            byte[] password = Encoding.ASCII.GetBytes("1234567890");
+            string password = "1234567890";
             try
             {
+                Aes a = Aes.Create();
+                a.Mode = CipherMode.CBC;
+                a.Padding = PaddingMode.PKCS7;
+                a.KeySize = 256;
+                a.BlockSize = a.KeySize;
+
+                Assert.Fail($"Key Size: {a.KeySize} | IV Size: {a.IV.Length} | Block Size: {a.BlockSize} | Feedback Size: {a.FeedbackSize}");
+
                 CryptoWorks cw = new CryptoWorks();
                 // Encryption
                 byte[] data = Encoding.ASCII.GetBytes(message);
-                byte[] cipherdata = await cw.Encrypt(data, password);
+                byte[] cipherdata = await cw.Encrypt(data, password, 192, 100000);
                 string ciphertext = Convert.ToBase64String(cipherdata);
 
                 // Decryption
