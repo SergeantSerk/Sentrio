@@ -252,13 +252,21 @@ namespace Sentrio
         /// <param name="password">
         /// The password to encrypt the message with.
         /// </param>
+        /// <param name="iterations">
+        /// The amount of iterations to derive the key, from password.
+        /// </param>
+        /// <param name="key_size">
+        /// The size of the key for AES.
+        /// </param>
         /// <returns>
         /// The encrypted message from the supplied message and password.
         /// </returns>
         public async Task<byte[]> Encrypt(byte[] message, string password, int key_size, int iterations)
         {
+            byte[] salt = GenerateSecureRandomBytes(key_size);
+            byte[] iv = GenerateSecureRandomBytes(Aes.Create().BlockSize / 8);
             using (MemoryStream MessageIn = new MemoryStream(message))
-            using (MemoryStream MessageOut = await Crypto(MessageIn, password, key_size, iterations, GenerateSecureRandomBytes(key_size / 8), GenerateSecureRandomBytes(key_size / 8), true))
+            using (MemoryStream MessageOut = await Crypto(MessageIn, password, key_size, iterations, salt, iv, true))
             {
                 return MessageOut.ToArray();
             }
@@ -278,75 +286,97 @@ namespace Sentrio
         /// </returns>
         public async Task<byte[]> Decrypt(byte[] message, string password)
         {
-            using (var MessageIn = new MemoryStream(message))
+            // Split all headers into their corresponding variables
+            string[] payloads = Encoding.ASCII.GetString(message).Split(':');
+            int key_size = int.Parse(payloads[0]);
+            int iterations = int.Parse(payloads[1]);
+            byte[] salt = Convert.FromBase64String(payloads[2]);
+            byte[] iv = Convert.FromBase64String(payloads[3]);
+            byte[] encrypted = Convert.FromBase64String(payloads[4]);
+            byte[] received_hash = Convert.FromBase64String(payloads[5]);
+
+            // Perform HMAC comparison for message validation and integrity
+            string testing = string.Join(":", key_size, iterations, Convert.ToBase64String(salt), Convert.ToBase64String(iv), Convert.ToBase64String(encrypted));
+            byte[] calculated_hash;
+            using (Rfc2898DeriveBytes rfc = new Rfc2898DeriveBytes(password, salt, iterations))
+            using (HMAC hmac = HMACSHA512.Create())
             {
-                byte[] KeySizeBytes = new byte[MessageIn.ReadByte()];
-                MessageIn.Read(KeySizeBytes, 0, KeySizeBytes.Length);
-                int key_size = int.Parse(Encoding.ASCII.GetString(KeySizeBytes));
+                hmac.Key = rfc.GetBytes(key_size / 8);
+                calculated_hash = hmac.ComputeHash(Encoding.ASCII.GetBytes(testing));
+            }
 
-                byte[] IterationsBytes = new byte[MessageIn.ReadByte()];
-                MessageIn.Read(IterationsBytes, 0, IterationsBytes.Length);
-                int iterations = int.Parse(Encoding.ASCII.GetString(IterationsBytes));
+            // Compare received hash with calculated hash
+            if (!CompareByteArrays(received_hash, calculated_hash)) throw new Exception("The received HMAC does not equal the calculated HMAC, message has been tampered with.");
 
-                byte[] salt = new byte[(MessageIn.ReadByte())];
-                MessageIn.Read(salt, 0, salt.Length);
-
-                byte[] iv = new byte[MessageIn.ReadByte()];
-                MessageIn.Read(iv, 0, iv.Length);
-
-                using (MemoryStream MessageOut = await Crypto(MessageIn, password, key_size, iterations, salt, iv, false))
-                {
-                    return MessageOut.ToArray();
-                }
+            // Begin decrypting
+            using (MemoryStream MessageIn = new MemoryStream(encrypted))
+            using (MemoryStream MessageOut = await Crypto(MessageIn, password, key_size, iterations, salt, iv, false))
+            {
+                return MessageOut.ToArray();
             }
         }
         #endregion
 
         #region Operations
-        #region New
         private async Task<MemoryStream> Crypto(Stream input, string password, int key_size, int iterations, byte[] salt, byte[] iv, bool encrypt)
         {
             using (MemoryStream output = new MemoryStream())
-            using (var rfc = new Rfc2898DeriveBytes(password, salt, iterations))
             using (var aes = Aes.Create())
             {
-                // Check if key size is valid
-                if (!aes.ValidKeySize(key_size)) throw new Exception("The specified key size is not valid.");
-
                 aes.KeySize = key_size;
                 aes.Mode = CM;
                 aes.Padding = PM;
-                aes.Key = rfc.GetBytes(aes.KeySize / 8);
                 aes.IV = iv;
 
-                using (var transform = encrypt ? aes.CreateEncryptor() : aes.CreateDecryptor())
-                using (var cs = new CryptoStream(output, transform, CryptoStreamMode.Write))
+                using (MemoryStream crypto = new MemoryStream())
                 {
+                    using (var rfc = new Rfc2898DeriveBytes(password, salt, iterations))
+                    {
+                        aes.Key = rfc.GetBytes(aes.KeySize / 8);
+
+                        using (var transform = encrypt ? aes.CreateEncryptor() : aes.CreateDecryptor())
+                        using (var cs = new CryptoStream(crypto, transform, CryptoStreamMode.Write))
+                        {
+                            // Input -> [Crpyto Functions] -> Crypto
+                            await input.CopyToAsync(cs);
+                        }
+                    }
+
                     if (encrypt)
                     {
-                        byte[] KeySizeBytes = Encoding.ASCII.GetBytes(aes.KeySize.ToString());              // Key Size Bytes
-                        output.WriteByte(Convert.ToByte(KeySizeBytes.Length));                              // Key Size Length
-                        output.Write(KeySizeBytes, 0, KeySizeBytes.Length);                                 // Key Size
-                        byte[] IterationBytes = Encoding.ASCII.GetBytes(rfc.IterationCount.ToString());     // Iteration Bytes
-                        output.WriteByte(Convert.ToByte(IterationBytes.Length));                            // Iteration Length
-                        output.Write(IterationBytes, 0, IterationBytes.Length);                             // Iteration
-                        output.WriteByte(Convert.ToByte(rfc.Salt.Length));                                  // Salt Length
-                        output.Write(rfc.Salt, 0, rfc.Salt.Length);                                         // Salt
-                        output.WriteByte(Convert.ToByte(aes.IV.Length));                                    // IV Length
-                        output.Write(aes.IV, 0, aes.IV.Length);                                             // IV
+                        // Add headers
+                        string salt_b64 = Convert.ToBase64String(salt);                                             // Salt Base64
+                        string iv_b64 = Convert.ToBase64String(iv);                                                 // IV Base64
+                        string ciphertext_b64 = Convert.ToBase64String(crypto.ToArray());                           // Ciphertext Base64
+                        string final = string.Join(":", key_size, iterations, salt_b64, iv_b64, ciphertext_b64);    // Penultimate Payload
 
-                        await input.CopyToAsync(cs);                                                        // Ciphertext
+                        // Add HMAC for integrity
+                        using (HMAC hmac = HMACSHA512.Create())
+                        {
+                            hmac.Key = aes.Key;
+                            byte[] hash = hmac.ComputeHash(Encoding.ASCII.GetBytes(final));
+                            string hash_b64 = Convert.ToBase64String(hash);
+                            final = string.Join(":", final, hash_b64);                                                  // Final Payload
+                        }
+
+                        // Wrap all data in ASCII
+                        byte[] final_data = Encoding.ASCII.GetBytes(final);
+                        // Write to output
+                        await output.WriteAsync(final_data, 0, final_data.Length);
                     }
                     else
                     {
-                        await input.CopyToAsync(cs);                                                        // Message
+                        // No headers (decrypting), get plaintext from crypto stream
+                        byte[] plaintext_data = crypto.ToArray();
+                        // Write to output
+                        await output.WriteAsync(plaintext_data, 0, plaintext_data.Length);
                     }
-
-                    return output;
                 }
+
+                return output;
             }
+
         }
-        #endregion
         #endregion
     }
 }

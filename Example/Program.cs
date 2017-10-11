@@ -25,7 +25,7 @@ namespace Scratchpad
             {
                 aes.Mode = CipherMode.CBC;
                 aes.Padding = PaddingMode.PKCS7;
-                aes.KeySize = 128;
+                aes.KeySize = 256;
 
                 using (Rfc2898DeriveBytes rfc = new Rfc2898DeriveBytes(password, aes.KeySize / 8, 10000))
                 {

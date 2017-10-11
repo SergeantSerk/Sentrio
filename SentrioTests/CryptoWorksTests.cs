@@ -100,22 +100,14 @@ namespace Sentrio.Tests
             string password = "1234567890";
             try
             {
-                Aes a = Aes.Create();
-                a.Mode = CipherMode.CBC;
-                a.Padding = PaddingMode.PKCS7;
-                a.KeySize = 256;
-                a.BlockSize = a.KeySize;
-
-                Assert.Fail($"Key Size: {a.KeySize} | IV Size: {a.IV.Length} | Block Size: {a.BlockSize} | Feedback Size: {a.FeedbackSize}");
-
                 CryptoWorks cw = new CryptoWorks();
                 // Encryption
                 byte[] data = Encoding.ASCII.GetBytes(message);
-                byte[] cipherdata = await cw.Encrypt(data, password, 192, 100000);
-                string ciphertext = Convert.ToBase64String(cipherdata);
+                byte[] cipherdata = await cw.Encrypt(data, password, 256, 100000);
+                string ciphertext = Encoding.ASCII.GetString(cipherdata);
 
                 // Decryption
-                byte[] ciphertext_data = Convert.FromBase64String(ciphertext);
+                byte[] ciphertext_data = Encoding.ASCII.GetBytes(ciphertext);
                 byte[] plaintext_data = await cw.Decrypt(ciphertext_data, password);
                 string plaintext = Encoding.ASCII.GetString(plaintext_data);
 
