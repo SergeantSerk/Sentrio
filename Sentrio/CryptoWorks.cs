@@ -196,7 +196,7 @@ namespace Sentrio
             // Create the destination file
             using (FileStream FileOut = new FileStream(FilePathOut, FileMode.Create))
             // Encrypt file and get the stream
-            using (MemoryStream CryptoStream = await Crypto(FileIn, password, key_size, iterations, GenerateSecureRandomBytes(key_size), GenerateSecureRandomBytes(key_size / 8), true))
+            using (MemoryStream CryptoStream = await Crypto(FileIn, password, key_size, iterations, GenerateSecureRandomBytes(key_size), GenerateSecureRandomBytes(Aes.Create().BlockSize / 8), true))
             {
                 byte[] data = CryptoStream.ToArray();               // Get encrypted content
                 await FileOut.WriteAsync(data, 0, data.Length);     // Write to destination file
