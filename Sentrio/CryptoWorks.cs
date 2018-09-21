@@ -234,8 +234,7 @@ namespace Sentrio
         public static async Task<byte[]> Decrypt(byte[] message, string password)
         {
             // Split all headers into their corresponding variables
-            string[] payloads = Encoding.ASCII.GetString(message).Split(':');
-            if (!payloads[0].Equals(Identifier)) throw new FormatException("Supplied message is not applicable for decryption.");
+            if (!GetFromIndex(message, 0).Equals(Identifier)) throw new FormatException("Supplied message is not applicable for decryption.");
             int key_size = int.Parse(GetFromIndex(message, 1));
             int iterations = int.Parse(GetFromIndex(message, 2));
             byte[] salt = Convert.FromBase64String(GetFromIndex(message, 3));

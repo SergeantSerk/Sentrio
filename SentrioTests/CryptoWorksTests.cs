@@ -129,6 +129,8 @@ namespace Sentrio.Tests
                     await input.ReadAsync(read_data, 0, read_data.Length);
                 }
 
+                File.Delete(file_path);
+
                 // Compare generated with received
                 Assert.IsTrue(CryptoWorks.CompareByteArrays(random_data, read_data));
             }
