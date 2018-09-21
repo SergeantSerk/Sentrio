@@ -1,5 +1,5 @@
 # Sentrio [![Build status](https://ci.appveyor.com/api/projects/status/kc8r4dkwp3c5ibwa?svg=true)](https://ci.appveyor.com/project/SergeantSerk/sentrio)
-A cryptography library for securely encrypting and decrypting data using custom protocol.
+A cryptography library for encrypting and decrypting data using custom protocol.
 
 ## Getting Started
 An example console program is given below but usage is fairly simple, with main functions being Encrypt, Decrypt or Hash. Encrypt and Decrypt methods have overloads that can be used for string or file encryptions.
@@ -49,4 +49,4 @@ See also the list of [contributors](https://github.com/SergeantSerk/Sentrio/grap
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details
+This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details. I am not responsible for any damages that may result from using this library in any way shape or form.
