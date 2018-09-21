@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
@@ -10,24 +11,12 @@ namespace Sentrio
     {
         #region Properties
         // Preconfigured password key derivation parameters
-        // public const string PasswordChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!£$%^&*()_+-=[]{}'#@~,.<>/? ";
-        // private static Aes AES = new AesCryptoServiceProvider() { Mode = CipherMode.CBC, Padding = PaddingMode.PKCS7 };
+        // public const string PasswordChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!£$%^&*()_+-=[]{}'#@~,.<>/?";
+        // public bool AutoEncrypt = true;
+        // public bool AutoDecrypt = true;
         public const CipherMode CM = CipherMode.CBC;
         public const PaddingMode PM = PaddingMode.PKCS7;
-        // public const int KeySize = 256;
-        // public const int IVSize = KeySize / 8;
-        // public const int SaltSize = KeySize / 8;
-
-        // Software properties
-        public bool AutoEncrypt = true;
-        public bool AutoDecrypt = true;
-        #endregion
-
-        #region Constructors
-        public CryptoWorks()
-        {
-
-        }
+        public const string Identifier = "8310111011611410511";
         #endregion
 
         #region Utilities
@@ -38,19 +27,8 @@ namespace Sentrio
         /// <returns>String in hexadecimal format.</returns>
         public static string ByteArrayToString(byte[] ba)
         {
-            if (ba != null && ba.Length > 0)
-            {
-                StringBuilder hex = new StringBuilder(ba.Length * 2);
-                foreach (byte b in ba)
-                {
-                    hex.AppendFormat("{0:x2}", b);
-                }
-                return hex.ToString();
-            }
-            else
-            {
-                return null;
-            }
+            if (ba != null && ba.Length > 0) return BitConverter.ToString(ba).Replace("-", "");
+            else return null;
         }
 
         /// <summary>
@@ -64,8 +42,7 @@ namespace Sentrio
             {
                 int NumberChars = hex.Length;
                 byte[] bytes = new byte[NumberChars / 2];
-                for (int i = 0; i < NumberChars; i += 2)
-                    bytes[i / 2] = Convert.ToByte(hex.Substring(i, 2), 16);
+                for (int i = 0; i < NumberChars; i += 2) bytes[i / 2] = Convert.ToByte(hex.Substring(i, 2), 16);
                 return bytes;
             }
             else
@@ -75,26 +52,13 @@ namespace Sentrio
         }
 
         /// <summary>
-        /// Generate a cryptographically strong random key using AES.
-        /// </summary>
-        /// <returns>Byte array of the generated key.</returns>
-        public byte[] GenerateRandomKey()
-        {
-            using (var aes = Aes.Create())
-            {
-                aes.GenerateKey();
-                return aes.Key;
-            }
-        }
-
-        /// <summary>
         /// Generate cryptographically strong random bytes using RNG based on given size.
         /// </summary>
         /// <param name="size">The size of byte array.</param>
         /// <returns>A byte array filled with random bytes.</returns>
-        public byte[] GenerateSecureRandomBytes(int size)
+        public static byte[] GenerateSecureRandomBytes(int size)
         {
-            using (var rng = new RNGCryptoServiceProvider())
+            using (RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider())
             {
                 byte[] random = new byte[size];
                 rng.GetBytes(random);
@@ -110,26 +74,9 @@ namespace Sentrio
         /// <returns></returns>
         public static bool CompareByteArrays(byte[] a1, byte[] a2)
         {
-            if (a1 != null && a1.Length > 0 && a2 != null && a2.Length > 0)
-            {
-                if (a1.Length != a2.Length)
-                {
-                    return false;
-                }
-
-                for (int i = 0; i < a1.Length; i++)
-                {
-                    if (a1[i] != a2[i])
-                    {
-                        return false;
-                    }
-                }
-                return true;
-            }
-            else
-            {
-                return false;
-            }
+            if (a1.Length != a2.Length) return false;
+            for (int i = 0; i < a1.Length; ++i) if (a1[i] != a2[i]) return false;
+            return true;
         }
 
         /// <summary>
@@ -145,9 +92,9 @@ namespace Sentrio
         /// If data is not empty and null & hash algorithm is not null, the hash of the byte array.
         /// Else, null.
         /// </returns>
-        public byte[] Hash(byte[] data, HashAlgorithm halgo)
+        public static byte[] Hash(byte[] data, HashAlgorithm halgo)
         {
-            if (data.Length > 0 && halgo != null) using (var h = halgo) return h.ComputeHash(data);
+            if (data.Length > 0 && halgo != null) using (HashAlgorithm h = halgo) return h.ComputeHash(data);
             else return null;
         }
 
@@ -164,13 +111,24 @@ namespace Sentrio
         /// <returns>
         /// The hash of the data from stream.
         /// </returns>
-        public byte[] Hash(Stream stream, HashAlgorithm halgo)
+        public static byte[] Hash(Stream stream, HashAlgorithm halgo)
         {
             // Reads data from FileStream to the data array
             byte[] data = new byte[stream.Length];
             stream.Read(data, 0, data.Length);
 
             return Hash(data, halgo);
+        }
+
+        /// <summary>
+        /// Get item from a denominator splitted ASCII string, of given index.
+        /// </summary>
+        /// <param name="message">The byte array of ASCII string.</param>
+        /// <param name="index">The index of the item within the protocol array.</param>
+        /// <returns></returns>
+        private static string GetFromIndex(byte[] message, int index)
+        {
+            return Encoding.ASCII.GetString(message).Split(':')[index];
         }
         #endregion
 
@@ -183,7 +141,7 @@ namespace Sentrio
         /// <param name="password">The password to encrypt the file.</param>
         /// <param name="key_size">The size of the key for AES.</param>
         /// <param name="iterations">The amount of iterations to derive the key, from password.</param>
-        public async Task Encrypt(string FilePathIn, string FilePathOut, string password, int key_size, int iterations)
+        public static async Task Encrypt(string FilePathIn, string FilePathOut, string password, int key_size = 256, int iterations = 10000)
         {
             if (string.IsNullOrWhiteSpace(FilePathIn)) throw new ArgumentException("The input file path cannot be empty or null.");
             else if (string.IsNullOrWhiteSpace(FilePathOut)) throw new ArgumentException("The output file path cannot be empty or null.");
@@ -214,16 +172,16 @@ namespace Sentrio
         /// <param name="FilePathIn">The path of the file to decrypt.</param>
         /// <param name="FilePathOut">The path to save the decrypted file.</param>
         /// <param name="password">The password to decrypt the file.</param>
-        public async Task Decrypt(string FilePathIn, string FilePathOut, string password)
+        public static async Task Decrypt(string FilePathIn, string FilePathOut, string password)
         {
             if (string.IsNullOrWhiteSpace(FilePathIn)) throw new ArgumentException("The input file path cannot be empty or null.");
             else if (string.IsNullOrWhiteSpace(FilePathOut)) throw new ArgumentException("The output file path cannot be empty or null.");
             else if (string.IsNullOrWhiteSpace(password)) throw new ArgumentException("The password cannot be empty or null.");
 
             // Open the source file
-            using (var FileIn = new FileStream(FilePathIn, FileMode.Open))
+            using (FileStream FileIn = new FileStream(FilePathIn, FileMode.Open))
             // Create the destination file
-            using (var FileOut = new FileStream(FilePathOut, FileMode.Create))
+            using (FileStream FileOut = new FileStream(FilePathOut, FileMode.Create))
             {
                 // Get data from file
                 byte[] data = new byte[FileIn.Length];
@@ -245,7 +203,7 @@ namespace Sentrio
         /// <param name="iterations">The amount of iterations to derive the key, from password.</param>
         /// <param name="key_size">The size of the key for AES.</param>
         /// <returns>The encrypted message from the supplied message and password.</returns>
-        public async Task<byte[]> Encrypt(byte[] message, string password, int key_size, int iterations)
+        public static async Task<byte[]> Encrypt(byte[] message, string password, int key_size = 256, int iterations = 10000)
         {
             if (message == null || message.Length == 0) throw new ArgumentException("The message cannot be empty or null.");
             else if (string.IsNullOrWhiteSpace(password)) throw new ArgumentException("The password cannot be empty or null.");
@@ -273,32 +231,32 @@ namespace Sentrio
         /// <returns>
         /// The decrypted message from the supplied message and password.
         /// </returns>
-        public async Task<byte[]> Decrypt(byte[] message, string password)
+        public static async Task<byte[]> Decrypt(byte[] message, string password)
         {
             // Split all headers into their corresponding variables
             string[] payloads = Encoding.ASCII.GetString(message).Split(':');
-            int key_size = int.Parse(payloads[0]);
-            int iterations = int.Parse(payloads[1]);
-            byte[] salt = Convert.FromBase64String(payloads[2]);
-            byte[] iv = Convert.FromBase64String(payloads[3]);
-            byte[] encrypted = Convert.FromBase64String(payloads[4]);
-            byte[] received_hash = Convert.FromBase64String(payloads[5]);
+            if (!payloads[0].Equals(Identifier)) throw new FormatException("Supplied message is not applicable for decryption.");
+            int key_size = int.Parse(GetFromIndex(message, 1));
+            int iterations = int.Parse(GetFromIndex(message, 2));
+            byte[] salt = Convert.FromBase64String(GetFromIndex(message, 3));
+            byte[] iv = Convert.FromBase64String(GetFromIndex(message, 4));
+            //byte[] encrypted = Convert.FromBase64String(payloads[5]);
+            byte[] received_hash = Convert.FromBase64String(GetFromIndex(message, 6));
 
             // Perform HMAC comparison for message validation and integrity
-            string testing = string.Join(":", key_size, iterations, Convert.ToBase64String(salt), Convert.ToBase64String(iv), Convert.ToBase64String(encrypted));
             byte[] calculated_hash;
             using (Rfc2898DeriveBytes rfc = new Rfc2898DeriveBytes(password, salt, iterations))
-            using (HMAC hmac = HMACSHA512.Create())
+            using (MemoryStream combined = new MemoryStream(Encoding.ASCII.GetBytes(string.Join(":", Identifier, key_size, iterations, Convert.ToBase64String(salt), Convert.ToBase64String(iv), Convert.ToBase64String(Convert.FromBase64String(GetFromIndex(message, 5)))))))
+            using (HMAC hmac = HMAC.Create())
             {
                 hmac.Key = rfc.GetBytes(key_size / 8);
-                calculated_hash = hmac.ComputeHash(Encoding.ASCII.GetBytes(testing));
+                calculated_hash = hmac.ComputeHash(combined);
             }
-
             // Compare received hash with calculated hash
-            if (!CompareByteArrays(received_hash, calculated_hash)) throw new Exception("The received HMAC does not equal the calculated HMAC, message has been tampered with.");
+            if (!CompareByteArrays(received_hash, calculated_hash)) throw new HMACNotEqualException("The received HMAC does not equal the calculated HMAC.");
 
             // Begin decrypting
-            using (MemoryStream MessageIn = new MemoryStream(encrypted))
+            using (MemoryStream MessageIn = new MemoryStream(Convert.FromBase64String(GetFromIndex(message, 5))))
             using (MemoryStream MessageOut = await Crypto(MessageIn, password, key_size, iterations, salt, iv, false))
             {
                 return MessageOut.ToArray();
@@ -307,10 +265,10 @@ namespace Sentrio
         #endregion
 
         #region Operations
-        private async Task<MemoryStream> Crypto(Stream input, string password, int key_size, int iterations, byte[] salt, byte[] iv, bool encrypt)
+        private static async Task<MemoryStream> Crypto(Stream input, string password, int key_size, int iterations, byte[] salt, byte[] iv, bool encrypt)
         {
             using (MemoryStream output = new MemoryStream())
-            using (var aes = Aes.Create())
+            using (Aes aes = Aes.Create())
             {
                 aes.KeySize = key_size;
                 aes.Mode = CM;
@@ -319,46 +277,53 @@ namespace Sentrio
 
                 using (MemoryStream crypto = new MemoryStream())
                 {
-                    using (var rfc = new Rfc2898DeriveBytes(password, salt, iterations))
+                    using (Rfc2898DeriveBytes rfc = new Rfc2898DeriveBytes(password, salt, iterations))
                     {
                         aes.Key = rfc.GetBytes(aes.KeySize / 8);
-
-                        using (var transform = encrypt ? aes.CreateEncryptor() : aes.CreateDecryptor())
-                        using (var cs = new CryptoStream(crypto, transform, CryptoStreamMode.Write))
-                        {
-                            // Input -> [Crpyto Functions] -> Crypto
-                            await input.CopyToAsync(cs);
-                        }
                     }
+
+                    using (ICryptoTransform transform = encrypt ? aes.CreateEncryptor() : aes.CreateDecryptor())
+                    using (CryptoStream cs = new CryptoStream(crypto, transform, CryptoStreamMode.Write))
+                    {
+                        // Encrypt: Input -> [Compress Functions] -> [Crypto Functions] -> Crypto
+                        // Decrypt: Input -> [Crypto Functions] -> [Decompress Functions] -> Crypto
+                        if (encrypt) using (GZipStream compression = new GZipStream(cs, CompressionMode.Compress)) await input.CopyToAsync(compression);
+                        else await input.CopyToAsync(cs);
+                    }
+
 
                     if (encrypt)
                     {
                         // Add headers
-                        string salt_b64 = Convert.ToBase64String(salt);                                             // Salt Base64
-                        string iv_b64 = Convert.ToBase64String(iv);                                                 // IV Base64
-                        string ciphertext_b64 = Convert.ToBase64String(crypto.ToArray());                           // Ciphertext Base64
-                        string final = string.Join(":", key_size, iterations, salt_b64, iv_b64, ciphertext_b64);    // Penultimate Payload
+                        string salt_b64 = Convert.ToBase64String(salt);                                                         // Salt Base64
+                        string iv_b64 = Convert.ToBase64String(iv);                                                             // IV Base64
+                        //string ciphertext_b64 = Convert.ToBase64String(crypto.ToArray());                                       // Ciphertext Base64
+                        //string final = string.Join(":", Identifier, key_size, iterations, salt_b64, iv_b64, ciphertext_b64);    // Penultimate Payload
 
                         // Add HMAC for integrity
-                        using (HMAC hmac = HMACSHA512.Create())
+                        string hash_b64 = string.Empty;
+                        using (MemoryStream combined = new MemoryStream(Encoding.ASCII.GetBytes(string.Join(":", Identifier, key_size, iterations, salt_b64, iv_b64, Convert.ToBase64String(crypto.ToArray())))))
+                        using (HMAC hmac = HMAC.Create())
                         {
                             hmac.Key = aes.Key;
-                            byte[] hash = hmac.ComputeHash(Encoding.ASCII.GetBytes(final));
-                            string hash_b64 = Convert.ToBase64String(hash);
-                            final = string.Join(":", final, hash_b64);                                                  // Final Payload
+                            byte[] hash = hmac.ComputeHash(combined);
+                            hash_b64 = Convert.ToBase64String(hash);
+                            //final = string.Join(":", final, hash_b64);                                                          // Final Payload
                         }
 
-                        // Wrap all data in ASCII
-                        byte[] final_data = Encoding.ASCII.GetBytes(final);
-                        // Write to output
-                        await output.WriteAsync(final_data, 0, final_data.Length);
+                        // Wrap all data in ASCII and write to output
+                        int length = Encoding.ASCII.GetByteCount(string.Join(":", Identifier, key_size, iterations, salt_b64, iv_b64, Convert.ToBase64String(crypto.ToArray()), hash_b64));
+                        await output.WriteAsync(Encoding.ASCII.GetBytes(string.Join(":", Identifier, key_size, iterations, salt_b64, iv_b64, Convert.ToBase64String(crypto.ToArray()), hash_b64)), 0, length);
                     }
                     else
                     {
-                        // No headers (decrypting), get plaintext from crypto stream
-                        byte[] plaintext_data = crypto.ToArray();
-                        // Write to output
-                        await output.WriteAsync(plaintext_data, 0, plaintext_data.Length);
+                        // No headers (decrypting), get plaintext (decompressed from GZipStream) from crypto stream
+                        using (MemoryStream temp = new MemoryStream(crypto.ToArray()))
+                        using (GZipStream compression = new GZipStream(temp, CompressionMode.Decompress))
+                        {
+                            // Write to output
+                            await compression.CopyToAsync(output);
+                        }
                     }
                 }
 

@@ -31,33 +31,6 @@ namespace Sentrio.Tests
         }
 
         /// <summary>
-        /// Tests if <see cref="CryptoWorks.ByteArrayToString(byte[])"/> works correctly.
-        /// </summary>
-        [TestMethod, TestCategory("Utilities")]
-        public void ByteArrayToStringTest()
-        {
-            byte[] a = { 0x76, 0x69, 0xC0, 0xDB, 0x5F, 0x3E };
-            string expected = "7669c0db5f3e";
-            string actual = CryptoWorks.ByteArrayToString(a);
-
-            Assert.IsTrue(expected.SequenceEqual(actual));
-        }
-
-        /// <summary>
-        /// Tests if <see cref="CryptoWorks.StringToByteArray(string)"/> works correctly.
-        /// Does not depend on <see cref="CryptoWorks.CompareByteArrays(byte[], byte[])"/>.
-        /// </summary>
-        [TestMethod, TestCategory("Utilities")]
-        public void StringToByteArrayTest()
-        {
-            string hex = "813C18D33137";
-            byte[] expected = { 0x81, 0x3C, 0x18, 0xD3, 0x31, 0x37 };
-            byte[] actual = CryptoWorks.StringToByteArray(hex);
-
-            Assert.IsTrue(expected.SequenceEqual(actual));
-        }
-
-        /// <summary>
         /// Tests if <see cref="CryptoWorks.Hash(byte[], HashAlgorithm)"/> works correctly.
         /// </summary>
         [TestMethod, TestCategory("Utilities")]
@@ -67,25 +40,15 @@ namespace Sentrio.Tests
             byte[] r_sha1 = CryptoWorks.StringToByteArray("84983e441c3bd26ebaae4aa1f95129e5e54670f1");
             byte[] r_sha256 = CryptoWorks.StringToByteArray("248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1");
             byte[] r_sha512 = CryptoWorks.StringToByteArray("204a8fc6dda82f0a0ced7beb8e08a41657c16ef468b228a8279be331a703c33596fd15c13b1b07f9aa1d3bea57789ca031ad85c7a71dd70354ec631238ca3445");
-            bool cond1, cond2, cond3 = false;
 
             // SHA1
-            {
-                byte[] actual = new CryptoWorks().Hash(data, SHA1.Create());
-                cond1 = CryptoWorks.CompareByteArrays(r_sha1, actual);
-            }
+            bool cond1 = CryptoWorks.CompareByteArrays(r_sha1, CryptoWorks.Hash(data, SHA1.Create()));
 
             // SHA256
-            {
-                byte[] actual = new CryptoWorks().Hash(data, SHA256.Create());
-                cond2 = CryptoWorks.CompareByteArrays(r_sha256, actual);
-            }
+            bool cond2 = CryptoWorks.CompareByteArrays(r_sha256, CryptoWorks.Hash(data, SHA256.Create()));
 
             // SHA512
-            {
-                byte[] actual = new CryptoWorks().Hash(data, SHA512.Create());
-                cond3 = CryptoWorks.CompareByteArrays(r_sha512, actual);
-            }
+            bool cond3 = CryptoWorks.CompareByteArrays(r_sha512, CryptoWorks.Hash(data, SHA512.Create()));
 
             Assert.IsTrue(cond1 && cond2 && cond3);
         }
@@ -99,21 +62,19 @@ namespace Sentrio.Tests
         {
             string message = "Lorem ipsum dolor sit amet, consectetur adipiscing elit.";
             string password = "1234567890";
-            int key_size = 256;
-            int iterations = 100000;
+            int key_size = 128;
+            int iterations = 100;
 
             try
             {
-                CryptoWorks cw = new CryptoWorks();
-
                 // Encryption
                 byte[] data = Encoding.ASCII.GetBytes(message);
-                byte[] cipherdata = await cw.Encrypt(data, password, key_size, iterations);
+                byte[] cipherdata = await CryptoWorks.Encrypt(data, password, key_size, iterations);
                 string ciphertext = Encoding.ASCII.GetString(cipherdata);
 
                 // Decryption
                 byte[] ciphertext_data = Encoding.ASCII.GetBytes(ciphertext);
-                byte[] plaintext_data = await cw.Decrypt(ciphertext_data, password);
+                byte[] plaintext_data = await CryptoWorks.Decrypt(ciphertext_data, password);
                 string plaintext = Encoding.ASCII.GetString(plaintext_data);
 
                 Assert.IsTrue(plaintext.SequenceEqual(message));
@@ -132,16 +93,14 @@ namespace Sentrio.Tests
         public async Task FileEncryptDecryptTest()
         {
             string password = "1234567890";
-            int key_size = 256;
-            int iterations = 100000;
+            int key_size = 128;
+            int iterations = 100;
 
             try
             {
-                CryptoWorks cw = new CryptoWorks();
-
                 // Data generation
                 // Generate 1mb of random data
-                byte[] random_data = cw.GenerateSecureRandomBytes(1024 * 1024);
+                byte[] random_data = CryptoWorks.GenerateSecureRandomBytes(1024 * 1024);
 
                 // Prepare file path
                 string project_path = Path.GetDirectoryName(Path.GetDirectoryName(Directory.GetCurrentDirectory()));
@@ -155,11 +114,11 @@ namespace Sentrio.Tests
                 }
 
                 // Encryption
-                await cw.Encrypt(file_path, encrypted_file_path, password, key_size, iterations);
+                await CryptoWorks.Encrypt(file_path, encrypted_file_path, password, key_size, iterations);
                 File.Delete(file_path);
 
                 // Decryption
-                await cw.Decrypt(encrypted_file_path, file_path, password);
+                await CryptoWorks.Decrypt(encrypted_file_path, file_path, password);
                 File.Delete(encrypted_file_path);
 
                 // Reading bytes from file
