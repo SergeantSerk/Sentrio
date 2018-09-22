@@ -1,11 +1,10 @@
-﻿using Sentrio;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using System.Linq;
-using System.Text;
-using System.Security.Cryptography;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
-using System.Threading.Tasks;
 using System.IO;
+using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
+using System.Threading.Tasks;
 
 namespace Sentrio.Tests
 {
@@ -69,13 +68,21 @@ namespace Sentrio.Tests
             {
                 // Encryption
                 byte[] data = Encoding.ASCII.GetBytes(message);
-                byte[] cipherdata = await CryptoWorks.Encrypt(data, password, key_size, iterations);
-                string ciphertext = Encoding.ASCII.GetString(cipherdata);
+                string ciphertext = string.Empty;
+                using (MemoryStream input = new MemoryStream(data))
+                using (MemoryStream output = await CryptoWorks.Encrypt(input, password, key_size, iterations))
+                {
+                    ciphertext = Encoding.ASCII.GetString(output.ToArray());
+                }
 
                 // Decryption
                 byte[] ciphertext_data = Encoding.ASCII.GetBytes(ciphertext);
-                byte[] plaintext_data = await CryptoWorks.Decrypt(ciphertext_data, password);
-                string plaintext = Encoding.ASCII.GetString(plaintext_data);
+                string plaintext = string.Empty;
+                using (MemoryStream input = new MemoryStream(ciphertext_data))
+                using (MemoryStream output = await CryptoWorks.Decrypt(input, password))
+                {
+                    plaintext = Encoding.ASCII.GetString(output.ToArray());
+                }
 
                 Assert.IsTrue(plaintext.SequenceEqual(message));
             }

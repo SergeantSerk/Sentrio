@@ -154,15 +154,8 @@ namespace Sentrio
             // Create the destination file
             using (FileStream FileOut = new FileStream(FilePathOut, FileMode.Create))
             {
-                // Read bytes from input file
-                byte[] data = new byte[FileIn.Length];
-                await FileIn.ReadAsync(data, 0, data.Length);
-
                 // Encrypt using text encryption
-                byte[] ciphertext = await Encrypt(data, password, key_size, iterations);
-
-                // Write to destination file
-                await FileOut.WriteAsync(ciphertext, 0, ciphertext.Length);
+                await (await Encrypt(FileIn, password, key_size, iterations)).CopyToAsync(FileOut);
             }
         }
 
@@ -183,15 +176,8 @@ namespace Sentrio
             // Create the destination file
             using (FileStream FileOut = new FileStream(FilePathOut, FileMode.Create))
             {
-                // Get data from file
-                byte[] data = new byte[FileIn.Length];
-                await FileIn.ReadAsync(data, 0, data.Length);
-
                 // Decrypt using text decrypt method
-                byte[] plaintext = await Decrypt(data, password);
-
-                // Write to output file
-                await FileOut.WriteAsync(plaintext, 0, plaintext.Length);
+                await (await Decrypt(FileIn, password)).CopyToAsync(FileOut);
             }
         }
         #endregion
@@ -203,7 +189,7 @@ namespace Sentrio
         /// <param name="iterations">The amount of iterations to derive the key, from password.</param>
         /// <param name="key_size">The size of the key for AES.</param>
         /// <returns>The encrypted message from the supplied message and password.</returns>
-        public static async Task<byte[]> Encrypt(byte[] message, string password, int key_size = 256, int iterations = 10000)
+        public static async Task<MemoryStream> Encrypt(Stream message, string password, int key_size = 256, int iterations = 10000)
         {
             if (message == null || message.Length == 0) throw new ArgumentException("The message cannot be empty or null.");
             else if (string.IsNullOrWhiteSpace(password)) throw new ArgumentException("The password cannot be empty or null.");
@@ -212,11 +198,7 @@ namespace Sentrio
 
             byte[] salt = GenerateSecureRandomBytes(key_size);
             byte[] iv = GenerateSecureRandomBytes(Aes.Create().BlockSize / 8);
-            using (MemoryStream MessageIn = new MemoryStream(message))
-            using (MemoryStream MessageOut = await Crypto(MessageIn, password, key_size, iterations, salt, iv, true))
-            {
-                return MessageOut.ToArray();
-            }
+            return await Crypto(message, password, key_size, iterations, salt, iv, true);
         }
 
         /// <summary>
@@ -231,34 +213,36 @@ namespace Sentrio
         /// <returns>
         /// The decrypted message from the supplied message and password.
         /// </returns>
-        public static async Task<byte[]> Decrypt(byte[] message, string password)
+        public static async Task<MemoryStream> Decrypt(Stream message, string password)
         {
-            // Split all headers into their corresponding variables
-            if (!GetFromIndex(message, 0).Equals(Identifier)) throw new FormatException("Supplied message is not applicable for decryption.");
-            int key_size = int.Parse(GetFromIndex(message, 1));
-            int iterations = int.Parse(GetFromIndex(message, 2));
-            byte[] salt = Convert.FromBase64String(GetFromIndex(message, 3));
-            byte[] iv = Convert.FromBase64String(GetFromIndex(message, 4));
-            //byte[] encrypted = Convert.FromBase64String(payloads[5]);
-            byte[] received_hash = Convert.FromBase64String(GetFromIndex(message, 6));
-
-            // Perform HMAC comparison for message validation and integrity
-            byte[] calculated_hash;
-            using (Rfc2898DeriveBytes rfc = new Rfc2898DeriveBytes(password, salt, iterations))
-            using (MemoryStream combined = new MemoryStream(Encoding.ASCII.GetBytes(string.Join(":", Identifier, key_size, iterations, Convert.ToBase64String(salt), Convert.ToBase64String(iv), Convert.ToBase64String(Convert.FromBase64String(GetFromIndex(message, 5)))))))
-            using (HMAC hmac = HMAC.Create())
+            using (MemoryStream MessageStream = new MemoryStream())
             {
-                hmac.Key = rfc.GetBytes(key_size / 8);
-                calculated_hash = hmac.ComputeHash(combined);
-            }
-            // Compare received hash with calculated hash
-            if (!CompareByteArrays(received_hash, calculated_hash)) throw new HMACNotEqualException("The received HMAC does not equal the calculated HMAC.");
+                await message.CopyToAsync(MessageStream);
 
-            // Begin decrypting
-            using (MemoryStream MessageIn = new MemoryStream(Convert.FromBase64String(GetFromIndex(message, 5))))
-            using (MemoryStream MessageOut = await Crypto(MessageIn, password, key_size, iterations, salt, iv, false))
-            {
-                return MessageOut.ToArray();
+                // Split all headers into their corresponding variables
+                if (!GetFromIndex(MessageStream.ToArray(), 0).Equals(Identifier)) throw new FormatException("Supplied message is not applicable for decryption.");
+                int key_size = int.Parse(GetFromIndex(MessageStream.ToArray(), 1));
+                int iterations = int.Parse(GetFromIndex(MessageStream.ToArray(), 2));
+                byte[] salt = Convert.FromBase64String(GetFromIndex(MessageStream.ToArray(), 3));
+                byte[] iv = Convert.FromBase64String(GetFromIndex(MessageStream.ToArray(), 4));
+                //byte[] encrypted = Convert.FromBase64String(payloads[5]);
+                byte[] received_hash = Convert.FromBase64String(GetFromIndex(MessageStream.ToArray(), 6));
+
+                // Perform HMAC comparison for message validation and integrity
+                byte[] calculated_hash;
+                using (Rfc2898DeriveBytes rfc = new Rfc2898DeriveBytes(password, salt, iterations))
+                using (MemoryStream combined = new MemoryStream(Encoding.ASCII.GetBytes(string.Join(":", Identifier, key_size, iterations, Convert.ToBase64String(salt), Convert.ToBase64String(iv), Convert.ToBase64String(Convert.FromBase64String(GetFromIndex(MessageStream.ToArray(), 5)))))))
+                using (HMAC hmac = HMAC.Create())
+                {
+                    hmac.Key = rfc.GetBytes(key_size / 8);
+                    calculated_hash = hmac.ComputeHash(combined);
+                }
+                // Compare received hash with calculated hash
+                if (!CompareByteArrays(received_hash, calculated_hash)) throw new HMACNotEqualException("The received HMAC does not equal the calculated HMAC.");
+
+                // Begin decrypting
+                using (MemoryStream MessageIn = new MemoryStream(Convert.FromBase64String(GetFromIndex(MessageStream.ToArray(), 5))))
+                    return await Crypto(MessageIn, password, key_size, iterations, salt, iv, false);
             }
         }
         #endregion
@@ -266,7 +250,7 @@ namespace Sentrio
         #region Operations
         private static async Task<MemoryStream> Crypto(Stream input, string password, int key_size, int iterations, byte[] salt, byte[] iv, bool encrypt)
         {
-            using (MemoryStream output = new MemoryStream())
+            MemoryStream output = new MemoryStream();
             using (Aes aes = Aes.Create())
             {
                 aes.KeySize = key_size;
@@ -325,10 +309,9 @@ namespace Sentrio
                         }
                     }
                 }
-
-                return output;
             }
-
+            output.Seek(0, SeekOrigin.Begin);
+            return output;
         }
         #endregion
     }
