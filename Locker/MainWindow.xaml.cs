@@ -101,7 +101,7 @@ namespace Locker
                 string File = EFilesToOperate[i];
                 EFileCountLabel.Content = $"{i + 1}/{EFilesToOperate.Length}";
                 EProgressBar.Value = i;
-                await CryptoWorks.Encrypt(File, File + ".lok", EPassword.Password);
+                await Crypto.Encrypt(File, File + ".lok", EPassword.Password, 256, 10000);
                 if (System.IO.File.Exists(File + ".lok")) System.IO.File.Delete(File);
             }
             MessageBox.Show("Operation completed.", "Encryption", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -187,7 +187,7 @@ namespace Locker
                 //{
                 try
                 {
-                    await CryptoWorks.Decrypt(File, File.Substring(0, File.Length - 4), DPassword.Password);
+                    await Crypto.Decrypt(File, File.Substring(0, File.Length - 4), DPassword.Password);
                     if (System.IO.File.Exists(File.Substring(0, File.Length - 4))) System.IO.File.Delete(File);
                     decrypted += 1;
                 }

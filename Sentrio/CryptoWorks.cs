@@ -7,6 +7,9 @@ using System.Threading.Tasks;
 
 namespace Sentrio
 {
+    /// <summary>
+    /// Static class for encrypting/decrypting small payloads e.g. text.
+    /// </summary>
     public class CryptoWorks
     {
         #region Properties
@@ -18,115 +21,6 @@ namespace Sentrio
         public const PaddingMode PM = PaddingMode.PKCS7;
         public const string Identifier = "8310111011611410511";
         public const char Splitter = ':';
-        #endregion
-
-        #region Utilities
-        /// <summary>
-        /// Converts the given byte array to "hexadecimal" string.
-        /// </summary>
-        /// <param name="ba">The byte array to convert.</param>
-        /// <returns>String in hexadecimal format.</returns>
-        public static string ByteArrayToString(byte[] ba)
-        {
-            if (ba != null && ba.Length > 0) return BitConverter.ToString(ba).Replace("-", "");
-            else return null;
-        }
-
-        /// <summary>
-        /// Converts the given "hexadecimal" string to byte array.
-        /// </summary>
-        /// <param name="hex">The hexadecimal string to convert.</param>
-        /// <returns>Byte array derived from the hexadecimal string.</returns>
-        public static byte[] StringToByteArray(string hex)
-        {
-            if (string.IsNullOrWhiteSpace(hex) == false)
-            {
-                int NumberChars = hex.Length;
-                byte[] bytes = new byte[NumberChars / 2];
-                for (int i = 0; i < NumberChars; i += 2) bytes[i / 2] = Convert.ToByte(hex.Substring(i, 2), 16);
-                return bytes;
-            }
-            else
-            {
-                return null;
-            }
-        }
-
-        /// <summary>
-        /// Generate cryptographically strong random bytes using RNG based on given size.
-        /// </summary>
-        /// <param name="size">The size of byte array.</param>
-        /// <returns>A byte array filled with random bytes.</returns>
-        public static byte[] GenerateSecureRandomBytes(int size)
-        {
-            using (RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider())
-            {
-                byte[] random = new byte[size];
-                rng.GetBytes(random);
-                return random;
-            }
-        }
-
-        /// <summary>
-        /// Compare two byte arrays and return true if both are equal.
-        /// </summary>
-        /// <param name="a1">First byte array to compare from.</param>
-        /// <param name="a2">Second byte array to compare with.</param>
-        /// <returns></returns>
-        public static bool CompareByteArrays(byte[] a1, byte[] a2)
-        {
-            if (a1.Length != a2.Length) return false;
-            for (int i = 0; i < a1.Length; ++i) if (a1[i] != a2[i]) return false;
-            return true;
-        }
-
-        /// <summary>
-        /// Hashes given byte array with the given hash algorithm.
-        /// </summary>
-        /// <param name="data">
-        /// The byte array to hash.
-        /// </param>
-        /// <param name="halgo">
-        /// The hash algorithm to use.
-        /// </param>
-        /// <returns>
-        /// If data is not empty and null & hash algorithm is not null, the hash of the byte array.
-        /// Else, null.
-        /// </returns>
-        public static byte[] Hash(byte[] data, HashAlgorithm halgo)
-        {
-            using (MemoryStream stream = new MemoryStream(data)) return Hash(stream, halgo);
-        }
-
-        /// <summary>
-        /// Hashes given stream with the given hash algorithm.
-        /// Uses <see cref="Hash(byte[], HashAlgorithm)"/> method.
-        /// </summary>
-        /// <param name="stream">
-        /// The stream to read data from.
-        /// </param>
-        /// <param name="halgo">
-        /// The hash algorithm to use.
-        /// </param>
-        /// <returns>
-        /// The hash of the data from stream.
-        /// </returns>
-        public static byte[] Hash(Stream stream, HashAlgorithm halgo)
-        {
-            if (stream.Length > 0 && halgo != null) using (HashAlgorithm h = halgo) return h.ComputeHash(stream);
-            else throw new ArgumentException("The message to be hashed cannot be empty or null.");
-        }
-
-        /// <summary>
-        /// Get item from a denominator splitted ASCII string, of given index.
-        /// </summary>
-        /// <param name="message">The byte array of ASCII string.</param>
-        /// <param name="index">The index of the item within the protocol array.</param>
-        /// <returns>The header from the formatted protocol string.</returns>
-        public static string GetHeaderFromIndex(byte[] message, int index)
-        {
-            return Encoding.ASCII.GetString(message).Split(Splitter)[index];
-        }
         #endregion
 
         #region File
@@ -179,13 +73,13 @@ namespace Sentrio
         }
         #endregion
 
-        #region Text
-        /// <summary>Encrypts a string message using given password.</summary>
-        /// <param name="input">The message to encrypt.</param>
+        #region Stream
+        /// <summary>Encrypts a stream using given password.</summary>
+        /// <param name="input">The stream to encrypt.</param>
         /// <param name="password">The password to encrypt the message with.</param>
         /// <param name="iterations">The amount of iterations to derive the key, from password.</param>
         /// <param name="key_size">The size of the key for AES.</param>
-        /// <returns>The encrypted message from the supplied message and password.</returns>
+        /// <returns>The encrypted stream from the supplied message and password.</returns>
         public static async Task Encrypt(Stream input, Stream output, string password, int key_size = 256, int iterations = 10000)
         {
             if (input == null || input.Length == 0) throw new ArgumentException("The input cannot be empty or null.");
@@ -194,22 +88,22 @@ namespace Sentrio
             else if (key_size < 0 || !Aes.Create().ValidKeySize(key_size)) throw new ArgumentException("The key size is not valid.");
             else if (iterations < 1) throw new ArgumentException("The iteration count cannot be less than 1.");
 
-            byte[] salt = GenerateSecureRandomBytes(key_size);
-            byte[] iv = GenerateSecureRandomBytes(Aes.Create().BlockSize / 8);
+            byte[] salt = Utilities.GetSecureRandomBytes(key_size);
+            byte[] iv = Utilities.GetSecureRandomBytes(Aes.Create().BlockSize / 8);
             await Crypto(input, output, password, key_size, iterations, salt, iv, true);
         }
 
         /// <summary>
-        /// Decrypts a string message using given password.
+        /// Decrypts a stream using given password.
         /// </summary>
         /// <param name="input">
-        /// The message to decrypt.
+        /// The stream to decrypt.
         /// </param>
         /// <param name="password">
         /// The password to decrypt the message with.
         /// </param>
         /// <returns>
-        /// The decrypted message from the supplied message and password.
+        /// The decrypted stream from the supplied message and password.
         /// </returns>
         public static async Task Decrypt(Stream input, Stream output, string password)
         {
@@ -218,18 +112,18 @@ namespace Sentrio
                 await input.CopyToAsync(buffer);
 
                 // Split all headers into their corresponding variables
-                if (!GetHeaderFromIndex(buffer.ToArray(), 0).Equals(Identifier)) throw new FormatException("Supplied message is not applicable for decryption.");
-                int key_size = int.Parse(GetHeaderFromIndex(buffer.ToArray(), 1));
-                int iterations = int.Parse(GetHeaderFromIndex(buffer.ToArray(), 2));
-                byte[] salt = Convert.FromBase64String(GetHeaderFromIndex(buffer.ToArray(), 3));
-                byte[] iv = Convert.FromBase64String(GetHeaderFromIndex(buffer.ToArray(), 4));
+                if (!Utilities.GetHeaderFromIndex(buffer.ToArray(), Splitter, 0).Equals(Identifier)) throw new FormatException("Supplied message is not applicable for decryption.");
+                int key_size = int.Parse(Utilities.GetHeaderFromIndex(buffer.ToArray(), Splitter, 1));
+                int iterations = int.Parse(Utilities.GetHeaderFromIndex(buffer.ToArray(), Splitter, 2));
+                byte[] salt = Convert.FromBase64String(Utilities.GetHeaderFromIndex(buffer.ToArray(), Splitter, 3));
+                byte[] iv = Convert.FromBase64String(Utilities.GetHeaderFromIndex(buffer.ToArray(), Splitter, 4));
                 //byte[] encrypted = Convert.FromBase64String(payloads[5]);
-                byte[] received_hash = Convert.FromBase64String(GetHeaderFromIndex(buffer.ToArray(), 6));
+                byte[] received_hash = Convert.FromBase64String(Utilities.GetHeaderFromIndex(buffer.ToArray(), Splitter, 6));
 
                 // Perform HMAC comparison for message validation and integrity
                 byte[] calculated_hash;
                 using (Rfc2898DeriveBytes rfc = new Rfc2898DeriveBytes(password, salt, iterations))
-                using (MemoryStream combined = new MemoryStream(Encoding.ASCII.GetBytes(string.Join(Splitter.ToString(), Identifier, key_size, iterations, Convert.ToBase64String(salt), Convert.ToBase64String(iv), Convert.ToBase64String(Convert.FromBase64String(GetHeaderFromIndex(buffer.ToArray(), 5)))))))
+                using (MemoryStream combined = new MemoryStream(Encoding.ASCII.GetBytes(string.Join(Splitter.ToString(), Identifier, key_size, iterations, Convert.ToBase64String(salt), Convert.ToBase64String(iv), Convert.ToBase64String(Convert.FromBase64String(Utilities.GetHeaderFromIndex(buffer.ToArray(), Splitter, 5)))))))
                 using (HMAC hmac = HMAC.Create())
                 {
                     hmac.Key = rfc.GetBytes(key_size / 8);
@@ -237,10 +131,10 @@ namespace Sentrio
                 }
 
                 // Compare received hash with calculated hash
-                if (!CompareByteArrays(received_hash, calculated_hash)) throw new HMACNotEqualException("The received HMAC does not equal the calculated HMAC.");
+                if (!Utilities.CompareByteArrays(received_hash, calculated_hash)) throw new HMACNotEqualException("The received HMAC does not equal the calculated HMAC.");
 
                 // Begin decrypting
-                using (MemoryStream MessageIn = new MemoryStream(Convert.FromBase64String(GetHeaderFromIndex(buffer.ToArray(), 5)))) await Crypto(MessageIn, output, password, key_size, iterations, salt, iv, false);
+                using (MemoryStream MessageIn = new MemoryStream(Convert.FromBase64String(Utilities.GetHeaderFromIndex(buffer.ToArray(), Splitter, 5)))) await Crypto(MessageIn, output, password, key_size, iterations, salt, iv, false);
             }
         }
         #endregion
